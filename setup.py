@@ -23,7 +23,7 @@ setup(
         "imageio-ffmpeg",
         "gdown",
         "chardet",
-        "mujoco==2.3.2",
+        "mujoco>=2.3.2",
     ],
     eager_resources=['*'],
     include_package_data=True,
