@@ -181,6 +181,7 @@ class Coffee(SingleArmEnv_MG):
 
         # whether to use ground-truth object states
         self.use_object_obs = use_object_obs
+        self.curr_max_rewards = 0.0
 
         super().__init__(
             robots=robots,
@@ -226,18 +227,34 @@ class Coffee(SingleArmEnv_MG):
         Returns:
             float: reward value
         """
-        reward = 0.
+        reward = 0.0
 
-        # sparse completion reward
-        if self._check_success():
+        metrix = self._check_success()
+        if metrix["mug_grasp"]:
             reward = 1.0
 
+        if metrix["lid_open"]:
+            reward = 2.0
+
+        grip_overhead = self.sim.data.site_xpos[self.grip_site_id][2] >= 0.95
+        if metrix["drawer_open"] and grip_overhead:
+            reward = 3.0
+
+        if metrix["grasp"]:
+            reward = 4.0
+
+        if metrix["task"]:
+            reward = 5.0
+        reward = reward / 5.0
         # use a shaping reward
         if self.reward_shaping:
             pass
 
         if self.reward_scale is not None:
             reward *= self.reward_scale
+
+        self.curr_max_rewards = max(self.curr_max_rewards, reward)
+        reward = self.curr_max_rewards
 
         return reward
 
@@ -346,6 +363,7 @@ class Coffee(SingleArmEnv_MG):
         """
         super()._setup_references()
 
+        self.grip_site_id = self.sim.model.site_name2id(self.robots[0].gripper.important_sites["grip_site"])
         # Additional object references for this env
         self.obj_body_id = dict(
             coffee_pod=self.sim.model.body_name2id(self.coffee_pod.root_body),
@@ -373,6 +391,7 @@ class Coffee(SingleArmEnv_MG):
         """
         super()._reset_internal()
 
+        self.curr_max_rewards = 0.0
         # Reset all object positions using initializer sampler if we're not directly loading from an xml
         if not self.deterministic_reset:
 
@@ -432,7 +451,7 @@ class Coffee(SingleArmEnv_MG):
             obj_centric_sensors, obj_centric_sensor_names = self._create_obj_centric_sensors(modality="object_centric")
             sensors += obj_centric_sensors
             names += obj_centric_sensor_names
-            actives += [True] * len(obj_centric_sensors)
+            actives += [False] * len(obj_centric_sensors)
 
             # add hinge angle of lid
             @sensor(modality=modality)
@@ -440,7 +459,7 @@ class Coffee(SingleArmEnv_MG):
                 return np.array([self.sim.data.qpos[self.hinge_qpos_addr]])
             sensors += [hinge_angle]
             names += ["hinge_angle"]
-            actives += [True]
+            actives += [False]
 
             # Create observables
             for name, s, active in zip(names, sensors, actives):
@@ -598,7 +617,7 @@ class Coffee(SingleArmEnv_MG):
         Check if task is complete.
         """
         metrics = self._get_partial_task_metrics()
-        return metrics["task"]
+        return metrics
 
     def _check_lid(self):
         # lid should be closed (angle should be less than 5 degrees)
@@ -1114,6 +1133,7 @@ class CoffeePreparation(Coffee):
         """
         SingleArmEnv._reset_internal(self)
 
+        self.curr_max_rewards = 0.0
         # Reset all object positions using initializer sampler if we're not directly loading from an xml
         if not self.deterministic_reset:
 
@@ -1198,7 +1218,7 @@ class CoffeePreparation(Coffee):
                 return np.array([self.sim.data.qpos[self.cabinet_qpos_addr]])
             sensors = [drawer_joint_angle]
             names = ["drawer_joint_angle"]
-            actives = [True]
+            actives = [False]
 
             # Create observables
             for name, s, active in zip(names, sensors, actives):
@@ -1246,6 +1266,15 @@ class CoffeePreparation(Coffee):
 
         # whether mug has been placed on coffee machine
         metrics["mug_place"] = self._check_mug_placement()
+
+        # drawer status
+        metrics["drawer_open"] = self.sim.data.qpos[self.cabinet_qpos_addr] <= -0.13
+        metrics["drawer_closed"] = self.sim.data.qpos[self.cabinet_qpos_addr] > -0.005
+
+        # lid open
+        metrics["lid_open"] = (
+            self.sim.data.qpos[self.hinge_qpos_addr] >= 2.0 * np.pi / 3
+        )
 
         # new task success includes mug placement
         metrics["task"] = metrics["task"] and metrics["mug_place"]
