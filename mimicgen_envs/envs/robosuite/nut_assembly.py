@@ -3,6 +3,7 @@
 # Licensed under the NVIDIA Source Code License [see LICENSE for details].
 
 import numpy as np
+import random
 from six import with_metaclass
 
 import robosuite

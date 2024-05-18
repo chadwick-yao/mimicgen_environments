@@ -179,6 +179,7 @@ class ThreePieceAssembly(SingleArmEnv_MG):
 
         # whether to use ground-truth object states
         self.use_object_obs = use_object_obs
+        self.curr_max_rewards = 0.0
 
         super().__init__(
             robots=robots,
