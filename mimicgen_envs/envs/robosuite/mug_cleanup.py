@@ -259,7 +259,7 @@ class MugCleanup(SingleArmEnv_MG):
             reward = 1.0
 
         # check for grasping object (stage 2)
-        obj_grasped = self._check_grasp(
+        obj_grasped = self._check_grasp_tolerant(
             gripper=self.robots[0].gripper,
             object_geoms=self.cleanup_object,
         )
