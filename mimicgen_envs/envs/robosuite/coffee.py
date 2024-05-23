@@ -230,22 +230,30 @@ class Coffee(SingleArmEnv_MG):
         reward = 0.0
 
         metrix = self._check_success()
-        if metrix["mug_grasp"]:
-            reward = 1.0
+        if "Preparation" in self.__class__.__name__:
+            if metrix["mug_grasp"]:
+                reward = 1.0
 
-        if metrix["lid_open"]:
-            reward = 2.0
+            if metrix["lid_open"]:
+                reward = 2.0
 
-        grip_overhead = self.sim.data.site_xpos[self.grip_site_id][2] >= 0.95
-        if metrix["drawer_open"] and grip_overhead:
-            reward = 3.0
+            grip_overhead = self.sim.data.site_xpos[self.grip_site_id][2] >= 0.95
+            if metrix["drawer_open"] and grip_overhead:
+                reward = 3.0
 
-        if metrix["grasp"]:
-            reward = 4.0
+            if metrix["grasp"]:
+                reward = 4.0
 
-        if metrix["task"]:
-            reward = 5.0
-        reward = reward / 5.0
+            if metrix["task"]:
+                reward = 5.0
+            reward = reward / 5.0
+        else:
+            if metrix["grasp"]:
+                reward = 1.0
+
+            if metrix["task"]:
+                reward = 2.0
+            reward = reward / 2.0
         # use a shaping reward
         if self.reward_shaping:
             pass

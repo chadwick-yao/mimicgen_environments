@@ -239,9 +239,17 @@ class ThreePieceAssembly(SingleArmEnv_MG):
         """
         reward = 0.
 
-        # sparse completion reward
-        if self._check_success():
+        metrics = self._check_success()
+        overhead = self.sim.data.site_xpos[self.grip_site_id][2] > 0.98
+        if metrics["first_grasped"] and overhead:
             reward = 1.0
+        if metrics["first_piece_assembled"] and overhead:
+            reward = 2.0
+        if metrics["second_grasped"] and overhead:
+            reward = 3.0
+        if metrics["task"]:
+            reward = 4.0
+        reward = reward / 4.0
 
         # use a shaping reward
         if self.reward_shaping:
@@ -249,6 +257,9 @@ class ThreePieceAssembly(SingleArmEnv_MG):
 
         if self.reward_scale is not None:
             reward *= self.reward_scale
+
+        self.curr_max_rewards = max(self.curr_max_rewards, reward)
+        reward = self.curr_max_rewards
 
         return reward
 
@@ -517,6 +528,9 @@ class ThreePieceAssembly(SingleArmEnv_MG):
         """
         super()._setup_references()
 
+        self.grip_site_id = self.sim.model.site_name2id(
+            self.robots[0].gripper.important_sites["grip_site"]
+        )
         # Additional object references from this env
         self.obj_body_id = dict(
             base=self.sim.model.body_name2id(self.base.root_body),
@@ -530,6 +544,7 @@ class ThreePieceAssembly(SingleArmEnv_MG):
         """
         super()._reset_internal()
 
+        self.curr_max_rewards = 0.0
         # Reset all object positions using initializer sampler if we're not directly loading from an xml
         if not self.deterministic_reset:
 
@@ -776,7 +791,7 @@ class ThreePieceAssembly(SingleArmEnv_MG):
         Check if task is complete.
         """
         metrics = self._get_partial_task_metrics()
-        return metrics["task"]
+        return metrics
 
     def _check_first_piece_is_assembled(self, xy_thresh=0.02):
         robot_and_piece_1_in_contact = self._check_grasp(
@@ -819,6 +834,19 @@ class ThreePieceAssembly(SingleArmEnv_MG):
             "first_piece_assembled": self._check_first_piece_is_assembled(),
             "task": self._check_second_piece_is_assembled(),
         }
+
+        metrics.update(
+            {
+                "first_grasped": self._check_grasp(
+                    gripper=self.robots[0].gripper,
+                    object_geoms=self.piece_1,
+                ),
+                "second_grasped": self._check_grasp(
+                    gripper=self.robots[0].gripper,
+                    object_geoms=self.piece_2,
+                ),
+            }
+        )
 
         return metrics
 
